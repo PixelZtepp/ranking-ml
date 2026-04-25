@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Ranking ML</title>
+
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #0f172a, #1e293b);
+            color: #e5e7eb;
+            margin: 0;
+        }
+
+        h1 {
+            text-align: center;
+            color: #fdba74;
+            margin-top: 20px;
+        }
+
+        h2 {
+            text-align: center;
+            color: #93c5fd;
+        }
+
+        #playerInput {
+            width: 250px;
+        }
+
+        #scoreInput,
+        select {
+            padding: 8px;
+            border-radius: 6px;
+            border: none;
+            outline: none;
+            background: #0f172a;
+            color: #e5e7eb;
+            border: 1px solid #475569;
+            min-width: 120px;
+        }
+
+        button {
+            background: #fdba74;
+            color: #1e293b;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-left: 5px;
+        }
+
+        button:hover {
+            background: #fed7aa;
+        }
+
+        table {
+            border-collapse: collapse;
+            margin: 20px auto;
+            background: #1e293b;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        th,
+        td {
+            border: 1px solid #334155;
+            padding: 6px;
+            text-align: center;
+        }
+
+        th {
+            background: #93c5fd;
+            color: #1e293b;
+        }
+
+        input {
+            width: 50px;
+            background: #0f172a;
+            color: white;
+            border: 1px solid #334155;
+            border-radius: 4px;
+            text-align: center;
+        }
+
+        .win {
+            background: rgba(167, 243, 208, 0.6);
+        }
+
+        .lose {
+            background: rgba(252, 165, 165, 0.6);
+        }
+
+        .highlight {
+            background: rgba(147, 197, 253, 0.25);
+        }
+
+        td:empty {
+            background: #020617;
+        }
+
+        #ranking tr:hover {
+            background: rgba(147, 197, 253, 0.2);
+        }
+    </style>
+
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+
+</head>
+
+<body>
+
+    <h1>🔥 Ranking ML 🔥</h1>
+    <button onclick="login()" style="display:block; margin:10px auto;">
+        Login Admin
+    </button>
+
+    <div id="adminPlayers" style="display:flex; justify-content:center; gap:10px; margin-top:20px; flex-wrap:wrap;">
+        <input id="playerInput" placeholder="Agregar jugador" style="width:250px;">
+        <button id="btnAdd" onclick="addPlayer()">Agregar</button>
+
+        <select id="removePlayerSelect"></select>
+        <button id="btnRemove" onclick="removePlayer()" style="background:#ef4444;">
+            Eliminar jugador
+        </button>
+    </div>
+
+    <div id="searchPlayers" style="text-align:center; margin-top:20px;">
+        <select id="p1"></select>
+        <span style="margin:0 10px;">VS</span>
+        <select id="p2"></select>
+    </div>
+
+    <div id="adminMatches" style="text-align:center; margin-top:10px;">
+        <input id="scoreInput" placeholder="5-3">
+        <button id="btnSave" onclick="addMatch()">Guardar</button>
+        <button id="btnDelete" onclick="resetMatch()" style="background:#fca5a5; color:#1e293b;">
+            Borrar resultado
+        </button>
+    </div>
+
+    <table id="matrix"></table>
+
+    <h2>Top 8</h2>
+    <table id="ranking"></table>
+
+    <script>
+        const isAdmin = true;
+
+        const provider = new firebase.auth.GoogleAuthProvider();
+
+        function login() {
+            firebase.auth().signInWithPopup(provider);
+        }
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBejbN2Dlep1CfTQ8Ka7YMXbr-ouXZa3bc",
+            authDomain: "rankingml.firebaseapp.com",
+            projectId: "rankingml",
+            storageBucket: "rankingml.firebasestorage.app",
+            messagingSenderId: "837031749431",
+            appId: "1:837031749431:web:5258e2eadc5a28e0329cb2"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        function login() {
+            firebase.auth().signInWithPopup(provider);
+        }
+
+        let players = [];
+        let scores = {};
+
+        async function save() {
+            await db.collection("ranking").doc("data").set({
+                players,
+                scores
+            });
+        }
+
+        function loadData() {
+            db.collection("ranking").doc("data")
+                .onSnapshot((doc) => {
+
+                    if (doc.exists) {
+                        const data = doc.data();
+                        players = data.players || [];
+                        scores = data.scores || {};
+                    }
+
+                    render();
+                });
+        }
+
+        function addPlayer() {
+            const name = document.getElementById("playerInput").value.trim();
+            if (!name || players.includes(name)) return;
+
+            players.push(name);
+            save();
+            render();
+        }
+
+        function updateSelectors() {
+            const currentP1 = document.getElementById("p1")?.value;
+            const currentP2 = document.getElementById("p2")?.value;
+            const p1 = document.getElementById("p1");
+            const p2 = document.getElementById("p2");
+            const removeSelect = document.getElementById("removePlayerSelect");
+
+            p1.innerHTML = '<option value="" disabled selected>Jugador 1</option>';
+            p2.innerHTML = '<option value="" disabled selected>Jugador 2</option>';
+            removeSelect.innerHTML = '<option value="" disabled selected>Jugador</option>';
+
+            players.forEach(p => {
+                p1.add(new Option(p, p));
+                p2.add(new Option(p, p));
+                removeSelect.add(new Option(p, p));
+            });
+
+            if (currentP1 && players.includes(currentP1)) {
+                p1.value = currentP1;
+            }
+
+            if (currentP2 && players.includes(currentP2)) {
+                p2.value = currentP2;
+            }
+
+            if (p1.value === p2.value) {
+                p2.value = "";
+            }
+        }
+
+        function addMatch() {
+            const p1 = document.getElementById("p1").value;
+            const p2 = document.getElementById("p2").value;
+            const score = document.getElementById("scoreInput").value;
+
+            if (!p1 || !p2 || p1 === p2) return;
+            if (!score.includes("-")) return;
+
+            let [a, b] = score.split("-").map(Number);
+
+            let key = p1 + "_" + p2;
+            let reverseKey = p2 + "_" + p1;
+
+            scores[key] = a + "-" + b;
+            scores[reverseKey] = b + "-" + a;
+
+            save();
+            render();
+        }
+
+        function resetMatch() {
+            const p1 = document.getElementById("p1").value;
+            const p2 = document.getElementById("p2").value;
+
+            if (!p1 || !p2 || p1 === p2) return;
+
+            let key = p1 + "_" + p2;
+            let reverseKey = p2 + "_" + p1;
+
+            delete scores[key];
+            delete scores[reverseKey];
+
+            save();
+            render();
+        }
+
+        function render() {
+            const table = document.getElementById("matrix");
+            table.innerHTML = "";
+
+            let header = table.insertRow();
+            header.insertCell();
+            players.forEach(p => {
+                let cell = header.insertCell();
+                cell.innerText = p;
+            });
+
+            const selectedP1 = document.getElementById("p1")?.value || null;
+            const selectedP2 = document.getElementById("p2")?.value || null;
+
+            players.forEach((rowPlayer, i) => {
+                let row = table.insertRow();
+
+                let nameCell = row.insertCell();
+                nameCell.innerText = rowPlayer;
+
+                players.forEach((colPlayer, j) => {
+                    let cell = row.insertCell();
+
+                    if (i === j) {
+                        cell.style.background = "#333";
+                        return;
+                    }
+
+                    let key = rowPlayer + "_" + colPlayer;
+                    let reverseKey = colPlayer + "_" + rowPlayer;
+
+                    let input = document.createElement("input");
+
+                    if (!isAdmin) {
+                        input.disabled = true;
+                    }
+
+                    input.value = scores[key] || "";
+
+                    input.oninput = () => {
+                        let val = input.value;
+                        if (!val.includes("-")) return;
+
+                        let [a, b] = val.split("-").map(Number);
+
+                        scores[key] = val;
+                        scores[reverseKey] = b + "-" + a;
+
+                        save();
+                        render();
+                    };
+
+                    // 🔥 PRIORIDAD 1: WIN / LOSE
+                    if (scores[key]) {
+                        let [a, b] = scores[key].split("-").map(Number);
+                        if (a > b) cell.classList.add("win");
+                        else if (a < b) cell.classList.add("lose");
+                    }
+
+                    // 🔥 PRIORIDAD 2: HIGHLIGHT SOLO SI NO HAY SCORE
+                    else if (
+                        (selectedP1 && (rowPlayer === selectedP1 || colPlayer === selectedP1)) ||
+                        (selectedP2 && (rowPlayer === selectedP2 || colPlayer === selectedP2))
+                    ) {
+                        cell.classList.add("highlight");
+                    }
+
+                    cell.appendChild(input);
+                });
+            });
+
+            updateSelectors();
+            updateRanking();
+            applyPermissions();
+
+            document.getElementById("p1").onchange = render;
+            document.getElementById("p2").onchange = render;
+        }
+
+        function updateRanking() {
+            let stats = {};
+
+            players.forEach(p => {
+                stats[p] = { win: 0, lose: 0 };
+            });
+
+            for (let key in scores) {
+                let [p1] = key.split("_");
+                let [a, b] = scores[key].split("-").map(Number);
+
+                if (a > b) {
+                    stats[p1].win += 1;
+                } else if (a < b) {
+                    stats[p1].lose += 1;
+                }
+            }
+
+            let ranking = Object.entries(stats).map(([name, s]) => {
+                let total = s.win + s.lose;
+                let wr = total ? (s.win / total) : 0;
+                return {
+                    name,
+                    win: s.win,
+                    lose: s.lose,
+                    wr,
+                };
+            });
+
+            ranking.sort((a, b) =>
+                b.win - a.win || b.wr - a.wr
+            );
+
+            const table = document.getElementById("ranking");
+            table.innerHTML = "";
+
+            let header = table.insertRow();
+            ["Jugador", "Ganados", "Perdidos", "Winrate"].forEach(t => {
+                let c = header.insertCell();
+                c.innerText = t;
+            });
+
+            ranking.slice(0, 8).forEach(r => {
+                let row = table.insertRow();
+                row.insertCell().innerText = r.name;
+                row.insertCell().innerText = r.win;
+                row.insertCell().innerText = r.lose;
+                row.insertCell().innerText = (r.wr * 100).toFixed(1) + "%";
+            });
+        }
+
+        function applyPermissions() {
+            if (!isAdmin) {
+                document.getElementById("adminPlayers").style.display = "none";
+                document.getElementById("adminMatches").style.display = "none";
+            }
+        }
+        function removePlayer() {
+            const player = document.getElementById("removePlayerSelect").value;
+
+            if (!player) return;
+
+            if (!confirm("¿Seguro que quieres eliminar a " + player + "?")) return;
+
+            // 🔹 Eliminar de lista
+            players = players.filter(p => p !== player);
+
+            // 🔹 Eliminar TODOS sus matches
+            for (let key in scores) {
+                if (key.startsWith(player + "_") || key.endsWith("_" + player)) {
+                    delete scores[key];
+                }
+            }
+
+            save();
+            render();
+        }
+
+
+        loadData();
+    </script>
+
+</body>
+
+</html>
