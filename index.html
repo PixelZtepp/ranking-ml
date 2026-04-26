@@ -131,6 +131,7 @@
         <select id="p1"></select>
         <span style="margin:0 10px;">VS</span>
         <select id="p2"></select>
+        <button onclick="clearSelection()">Limpiar</button>
     </div>
 
     <div id="adminMatches" style="text-align:center; margin-top:10px;">
@@ -205,15 +206,16 @@
         }
 
         function updateSelectors() {
-            const currentP1 = document.getElementById("p1")?.value;
-            const currentP2 = document.getElementById("p2")?.value;
             const p1 = document.getElementById("p1");
             const p2 = document.getElementById("p2");
             const removeSelect = document.getElementById("removePlayerSelect");
 
-            p1.innerHTML = '<option value="" disabled selected>Jugador 1</option>';
-            p2.innerHTML = '<option value="" disabled selected>Jugador 2</option>';
-            removeSelect.innerHTML = '<option value="" disabled selected>Jugador</option>';
+            const currentP1 = p1.value;
+            const currentP2 = p2.value;
+
+            p1.innerHTML = '<option value="">-- Jugador 1 --</option>';
+            p2.innerHTML = '<option value="">-- Jugador 2 --</option>';
+            removeSelect.innerHTML = "";
 
             players.forEach(p => {
                 p1.add(new Option(p, p));
@@ -221,17 +223,12 @@
                 removeSelect.add(new Option(p, p));
             });
 
-            if (currentP1 && players.includes(currentP1)) {
-                p1.value = currentP1;
-            }
+            // Restaurar selección si existe
+            if (players.includes(currentP1)) p1.value = currentP1;
+            else p1.value = "";
 
-            if (currentP2 && players.includes(currentP2)) {
-                p2.value = currentP2;
-            }
-
-            if (p1.value === p2.value) {
-                p2.value = "";
-            }
+            if (players.includes(currentP2)) p2.value = currentP2;
+            else p2.value = "";
         }
 
         function addMatch() {
@@ -322,14 +319,12 @@
                         render();
                     };
 
-                    // 🔥 PRIORIDAD 1: WIN / LOSE
                     if (scores[key]) {
                         let [a, b] = scores[key].split("-").map(Number);
                         if (a > b) cell.classList.add("win");
                         else if (a < b) cell.classList.add("lose");
                     }
 
-                    // 🔥 PRIORIDAD 2: HIGHLIGHT SOLO SI NO HAY SCORE
                     else if (
                         (selectedP1 && (rowPlayer === selectedP1 || colPlayer === selectedP1)) ||
                         (selectedP2 && (rowPlayer === selectedP2 || colPlayer === selectedP2))
@@ -406,6 +401,7 @@
                 document.getElementById("adminMatches").style.display = "none";
             }
         }
+
         function removePlayer() {
             const player = document.getElementById("removePlayerSelect").value;
 
@@ -424,6 +420,12 @@
             }
 
             save();
+            render();
+        }
+
+        function clearSelection() {
+            document.getElementById("p1").value = "";
+            document.getElementById("p2").value = "";
             render();
         }
 
