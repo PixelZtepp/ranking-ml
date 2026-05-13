@@ -102,6 +102,48 @@
         #ranking tr:hover {
             background: rgba(147, 197, 253, 0.2);
         }
+
+        .profileCard {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 15px;
+            margin: 20px auto;
+            width: 80%;
+            max-width: 700px;
+        }
+
+        .profileCard h3 {
+            color: #fdba74;
+            margin-bottom: 10px;
+        }
+
+        .profileStats {
+            margin-bottom: 15px;
+            color: #93c5fd;
+        }
+
+        .opponentList {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .played {
+            background: rgba(167, 243, 208, 0.6);
+            padding: 6px 10px;
+            border-radius: 6px;
+            color: #0f172a;
+            font-weight: bold;
+        }
+
+        .notPlayed {
+            background: rgba(252, 165, 165, 0.6);
+            padding: 6px 10px;
+            border-radius: 6px;
+            color: #0f172a;
+            font-weight: bold;
+        }
     </style>
 
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -112,7 +154,7 @@
 
 <body>
 
-    <h1>🔥 Ranking ML 🔥</h1>
+    <h1>Ranking ML </h1>
     <button onclick="login()" style="display:block; margin:10px auto;">
         Login Admin
     </button>
@@ -146,6 +188,16 @@
 
     <h2>Top 8</h2>
     <table id="ranking"></table>
+
+    <div id="profilesPanel" style="margin-top:30px; text-align:center;">
+
+        <select id="profileSelect" style="margin-bottom:20px;">
+            <option value="">-- Seleccionar jugador --</option>
+        </select>
+
+        <div id="profileContent"></div>
+
+    </div>
 
     <script>
         const isAdmin = false;
@@ -244,6 +296,19 @@
             let key = p1 + "_" + p2;
             let reverseKey = p2 + "_" + p1;
 
+            if (scores[key]) {
+
+                const confirmar = confirm(
+                    "Ya existe un resultado entre estos jugadores.\n\n" +
+                    "Resultado actual: " + scores[key] + "\n\n" +
+                    "¿Deseas sobrescribirlo?"
+                );
+
+                if (!confirmar) {
+                    return;
+                }
+            }
+
             scores[key] = a + "-" + b;
             scores[reverseKey] = b + "-" + a;
 
@@ -339,6 +404,7 @@
             updateSelectors();
             updateRanking();
             applyPermissions();
+            renderProfiles();
 
             document.getElementById("p1").onchange = render;
             document.getElementById("p2").onchange = render;
@@ -427,6 +493,120 @@
             document.getElementById("p1").value = "";
             document.getElementById("p2").value = "";
             render();
+        }
+
+        function renderProfiles() {
+
+            const select = document.getElementById("profileSelect");
+            const content = document.getElementById("profileContent");
+
+            // Guardar selección actual
+            const currentValue = select.value;
+
+            // Limpiar selector
+            select.innerHTML = `
+        <option value="">
+            -- Seleccionar jugador --
+        </option>
+    `;
+
+            // Llenar selector
+            players.forEach(player => {
+                select.add(new Option(player, player));
+            });
+
+            // Restaurar selección
+            if (players.includes(currentValue)) {
+                select.value = currentValue;
+            }
+
+            // Mostrar perfil al cambiar
+            select.onchange = () => {
+                showProfile(select.value);
+            };
+
+            // Si ya había uno seleccionado
+            if (select.value) {
+                showProfile(select.value);
+            } else {
+                content.innerHTML = "";
+            }
+        }
+
+        function showProfile(player) {
+
+            const content = document.getElementById("profileContent");
+
+            if (!player) {
+                content.innerHTML = "";
+                return;
+            }
+
+            let wins = 0;
+            let losses = 0;
+
+            // Calcular stats
+            for (let key in scores) {
+
+                const [p1] = key.split("_");
+
+                if (p1 !== player) continue;
+
+                let [a, b] = scores[key].split("-").map(Number);
+
+                if (a > b) wins++;
+                else if (a < b) losses++;
+            }
+
+            let total = wins + losses;
+            let winrate = total
+                ? ((wins / total) * 100).toFixed(1)
+                : "0.0";
+
+            let html = `
+        <div class="profileCard">
+
+            <h3>${player}</h3>
+
+            <div class="profileStats">
+                🏆 Wins: ${wins} |
+                💀 Losses: ${losses} |
+                📊 WR: ${winrate}%
+            </div>
+
+            <div class="opponentList">
+    `;
+
+            players.forEach(opponent => {
+
+                if (player === opponent) return;
+
+                const key = player + "_" + opponent;
+
+                if (scores[key]) {
+
+                    html += `
+                <div class="played">
+                    ✅ ${opponent}
+                </div>
+            `;
+
+                } else {
+
+                    html += `
+                <div class="notPlayed">
+                    ❌ ${opponent}
+                </div>
+            `;
+                }
+            });
+
+            html += `
+            </div>
+        </div>
+    `;
+
+            content.innerHTML = html;
         }
 
 
